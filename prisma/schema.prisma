@@ -15,20 +15,20 @@ enum Role {
   STORE
 }
 
-// --- CORE: USUÁRIOS E HIERARQUIA ---
+// --- CORE: USUÃƒÂRIOS E HIERARQUIA ---
 model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String    @unique
-  password        String
-  role            Role      @default(STORE)
+  id       String  @id @default(cuid())
+  name     String?
+  email    String  @unique
+  password String
+  role     Role    @default(STORE)
 
   // Novos campos de bloqueio
-  isBlocked       Boolean   @default(false)
-  restrictActions Boolean   @default(false)
-  blockTree       Boolean   @default(false)
+  isBlocked       Boolean @default(false)
+  restrictActions Boolean @default(false)
+  blockTree       Boolean @default(false)
 
-  permissions     String?   @default("[]") // Para Staff (JSON String)
+  permissions String? @default("[]") // Para Staff (JSON String)
 
   // Motor Financeiro & Licenciamento
   tier            String    @default("BRONZE")
@@ -39,124 +39,125 @@ model User {
   expiresAt       DateTime?
 
   // Relacionamento de Rede (Revendedor -> Lojas)
-  resellerId      String?
-  reseller        User?     @relation("ResellerToStore", fields: [resellerId], references: [id])
-  stores          User[]    @relation("ResellerToStore")    
+  resellerId String?
+  reseller   User?   @relation("ResellerToStore", fields: [resellerId], references: [id])
+  stores     User[]  @relation("ResellerToStore")
 
-  // Relacionamentos com Módulos Operacionais
-  transactions    Transaction[]
-  logs            AuditLog[] 
-  categories      Category[]
-  products        Product[]
-  sales           Sale[]
-  customers       Customer[]
-  cashSessions    CashSession[]
+  // Relacionamentos com MÃƒÂ³dulos Operacionais
+  transactions Transaction[]
+  logs         AuditLog[]
+  categories   Category[]
+  products     Product[]
+  sales        Sale[]
+  customers    Customer[]
+  cashSessions CashSession[]
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reports   Report[]
 }
 
-// --- MÓDULO FINANCEIRO (MASTER & REVENDA) ---
+// --- MÃƒâ€œDULO FINANCEIRO (MASTER & REVENDA) ---
 model Transaction {
-  id          String   @id @default(cuid())
-  amount      Float    
+  id          String  @id @default(cuid())
+  amount      Float
   description String?
-  status      String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
-  
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  
-  createdAt   DateTime @default(now())
-}
+  status      String  @default("COMPLETED") // PENDING, COMPLETED, FAILED
 
-// --- MÓDULO DE AUDITORIA ---
-model AuditLog {
-  id        String   @id @default(cuid())
-  action    String   
-  details   String?
-  userId    String   
-  user      User     @relation(fields: [userId], references: [id])
-  targetId  String?
-  ipAddress String?  
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
 }
 
-// --- MÓDULO DE ESTOQUE (LOJA) ---
+// --- MÃƒâ€œDULO DE AUDITORIA ---
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  targetId  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+// --- MÃƒâ€œDULO DE ESTOQUE (LOJA) ---
 model Category {
   id        String    @id @default(cuid())
   name      String
-  storeId   String    
+  storeId   String
   store     User      @relation(fields: [storeId], references: [id])
   products  Product[]
   createdAt DateTime  @default(now())
 }
 
 model Product {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
-  sku         String?  // Código de Barras
-  priceCost   Float    @default(0) 
-  priceSell   Float    @default(0) 
-  stock       Int      @default(0) 
-  minStock    Int      @default(5) 
-  
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
-  
-  storeId     String
-  store       User     @relation(fields: [storeId], references: [id])
+  sku         String? // CÃƒÂ³digo de Barras
+  priceCost   Float   @default(0)
+  priceSell   Float   @default(0)
+  stock       Int     @default(0)
+  minStock    Int     @default(5)
 
-  saleItems   SaleItem[]
-  active      Boolean  @default(true) 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  storeId String
+  store   User   @relation(fields: [storeId], references: [id])
+
+  saleItems SaleItem[]
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
-// --- MÓDULO DE VENDAS / PDV (LOJA) ---
+// --- MÃƒâ€œDULO DE VENDAS / PDV (LOJA) ---
 model Sale {
-  id            String     @id @default(cuid())
-  number        Int?       // Número sequencial amigável   
-  total         Float
-  discount      Float      @default(0)
-  change        Float      @default(0)
-  status        String     @default("COMPLETED")
-  syncedAt      DateTime?
-  
-  storeId       String
-  store         User       @relation(fields: [storeId], references: [id])
-  
-  customerId    String?
-  customer      Customer?  @relation(fields: [customerId], references: [id])
+  id       String    @id @default(cuid())
+  number   Int? // NÃƒÂºmero sequencial amigÃƒÂ¡vel   
+  total    Float
+  discount Float     @default(0)
+  change   Float     @default(0)
+  status   String    @default("COMPLETED")
+  syncedAt DateTime?
+
+  storeId String
+  store   User   @relation(fields: [storeId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
 
   cashSessionId String?
   cashSession   CashSession? @relation(fields: [cashSessionId], references: [id])
 
-  items         SaleItem[]
-  payments      SalePayment[]
-  createdAt     DateTime   @default(now())
+  items     SaleItem[]
+  payments  SalePayment[]
+  createdAt DateTime      @default(now())
 }
 
 model SalePayment {
   id        String   @id @default(cuid())
   saleId    String
   sale      Sale     @relation(fields: [saleId], references: [id])
-  method    String   // PIX, MONEY, CREDIT, DEBIT
+  method    String // PIX, MONEY, CREDIT, DEBIT
   amount    Float
   createdAt DateTime @default(now())
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  document  String?  // CPF/CNPJ
-  phone     String?
-  email     String?
-  address   String?
-  storeId   String
-  store     User     @relation(fields: [storeId], references: [id])
-  sales     Sale[]
-  
+  id       String  @id @default(cuid())
+  name     String
+  document String? // CPF/CNPJ
+  phone    String?
+  email    String?
+  address  String?
+  storeId  String
+  store    User    @relation(fields: [storeId], references: [id])
+  sales    Sale[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -167,18 +168,33 @@ model CashSession {
   store         User      @relation(fields: [storeId], references: [id])
   openedAt      DateTime  @default(now())
   closedAt      DateTime?
-  initialAmount Float     // Fundo de troco
-  finalAmount   Float?    // Valor conferido
+  initialAmount Float // Fundo de troco
+  finalAmount   Float? // Valor conferido
   status        String    @default("OPEN")
   sales         Sale[]
 }
 
 model SaleItem {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   saleId    String
-  sale      Sale     @relation(fields: [saleId], references: [id])
+  sale      Sale    @relation(fields: [saleId], references: [id])
   productId String
-  product   Product  @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
   quantity  Int
   priceUnit Float
+}
+
+model Report {
+  id          String @id @default(cuid())
+  subject     String
+  description String
+  category    String
+  priority    String @default("NORMAL")
+  status      String @default("ABERTO")
+
+  userId String
+  user   User   @relation(fields: [userId], references: id)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

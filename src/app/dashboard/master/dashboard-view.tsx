@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Users, Store, TrendingUp, Wallet } from "lucide-react";
 import GrowthChart from "./resellers/growth-chart";
@@ -24,7 +24,7 @@ export default function DashboardView({ stats }: { stats: any }) {
     },
     { 
         title: "Faturamento", 
-        value: `R$ ${stats.revenue}`, 
+        value: "R$ " + stats.revenue, 
         label: "Créditos em Circulação", 
         icon: Wallet, 
         color: "text-indigo-600", 
@@ -40,21 +40,10 @@ export default function DashboardView({ stats }: { stats: any }) {
     },
   ];
 
-  // Dados simulados para o gráfico
-  const chartData = [
-    { date: "Seg", vendas: 12 },
-    { date: "Ter", vendas: 18 },
-    { date: "Qua", vendas: 15 },
-    { date: "Qui", vendas: 25 },
-    { date: "Sex", vendas: 32 },
-    { date: "Sáb", vendas: 28 },
-    { date: "Dom", vendas: 35 },
-  ];
-
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-black text-gray-900">Visão Geral do Ecossistema</h1>
+        <h1 className="text-2xl font-black text-gray-900">Dashboard</h1>
         <p className="text-gray-500">Monitoramento em tempo real de revendas e lojas.</p>
       </div>
 
@@ -78,7 +67,7 @@ export default function DashboardView({ stats }: { stats: any }) {
 
       <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
         <h2 className="text-xl font-black text-gray-900 mb-6">Evolução da Rede</h2>
-        <GrowthChart data={chartData} />
+        <GrowthChart data={stats.chartData || []} />
       </div>
     </div>
   );
