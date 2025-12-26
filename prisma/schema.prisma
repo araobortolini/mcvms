@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS DE CONTROLE ---
+enum Role {
+  MASTER
+  STAFF
+  RESELLER
+  STORE
+}
+
+// --- CORE: USUÁRIOS E HIERARQUIA ---
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  password        String
+  role            Role      @default(STORE)
+  permissions     String?   @default("[]") // Para Staff (JSON String)
+  
+  // Motor Financeiro & Licenciamento
+  tier            String    @default("BRONZE")
+  credits         Int       @default(0)
+  isGraceActive   Boolean   @default(false)
+  gracePeriodUsed Boolean   @default(false)
+  graceStartedAt  DateTime?
+  expiresAt       DateTime?
+
+  // Relacionamento de Rede (Revendedor -> Lojas)
+  resellerId      String?   
+  reseller        User?     @relation("ResellerToStore", fields: [resellerId], references: [id])
+  stores          User[]    @relation("ResellerToStore")
+
+  // Relacionamentos com Módulos Operacionais
+  transactions    Transaction[]
+  logs            AuditLog[] 
+  categories      Category[]
+  products        Product[]
+  sales           Sale[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// --- MÓDULO FINANCEIRO (MASTER & REVENDA) ---
+model Transaction {
+  id          String   @id @default(cuid())
+  amount      Float    
+  description String?  
+  status      String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+// --- MÓDULO DE AUDITORIA ---
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   
+  details   String?  
+  userId    String   
+  user      User     @relation(fields: [userId], references: [id])
+  targetId  String?  
+  ipAddress String?  
+  createdAt DateTime @default(now())
+}
+
+// --- MÓDULO DE ESTOQUE (LOJA) ---
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  storeId   String    
+  store     User      @relation(fields: [storeId], references: [id])
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?  // Código de Barras
+  priceCost   Float    @default(0) 
+  priceSell   Float    @default(0) 
+  stock       Int      @default(0) 
+  minStock    Int      @default(5) 
+  
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  storeId     String
+  store       User     @relation(fields: [storeId], references: [id])
+
+  saleItems   SaleItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- MÓDULO DE VENDAS / PDV (LOJA) ---
+model Sale {
+  id          String     @id @default(cuid())
+  total       Float
+  method      String     // PIX, DINHEIRO, CARTAO
+  status      String     @default("COMPLETED")
+  
+  storeId     String
+  store       User       @relation(fields: [storeId], references: [id])
+  
+  items       SaleItem[]
+  createdAt   DateTime   @default(now())
+}
+
+model SaleItem {
+  id        String   @id @default(cuid())
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  priceUnit Float    // Preço no momento exato da venda
+}
