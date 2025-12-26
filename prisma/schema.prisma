@@ -1,4 +1,4 @@
-﻿generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -15,18 +15,21 @@ enum Role {
   STORE
 }
 
-// --- CORE: USUÃRIOS E HIERARQUIA ---
+// --- CORE: USUÁRIOS E HIERARQUIA ---
 model User {
   id              String    @id @default(cuid())
   name            String?
   email           String    @unique
   password        String
-  role            Role     @default(STORE)
-  isBlocked       Boolean  @default(false)
-  restrictActions Boolean  @default(false)
-  blockTree       Boolean  @default(false)
+  role            Role      @default(STORE)
+
+  // Novos campos de bloqueio
+  isBlocked       Boolean   @default(false)
+  restrictActions Boolean   @default(false)
+  blockTree       Boolean   @default(false)
+
   permissions     String?   @default("[]") // Para Staff (JSON String)
-  
+
   // Motor Financeiro & Licenciamento
   tier            String    @default("BRONZE")
   credits         Int       @default(0)
@@ -36,11 +39,11 @@ model User {
   expiresAt       DateTime?
 
   // Relacionamento de Rede (Revendedor -> Lojas)
-  resellerId      String?   
+  resellerId      String?
   reseller        User?     @relation("ResellerToStore", fields: [resellerId], references: [id])
-  stores          User[]    @relation("ResellerToStore")
+  stores          User[]    @relation("ResellerToStore")    
 
-  // Relacionamentos com MÃ³dulos Operacionais
+  // Relacionamentos com Módulos Operacionais
   transactions    Transaction[]
   logs            AuditLog[] 
   categories      Category[]
@@ -53,11 +56,11 @@ model User {
   updatedAt       DateTime  @updatedAt
 }
 
-// --- MÃ“DULO FINANCEIRO (MASTER & REVENDA) ---
+// --- MÓDULO FINANCEIRO (MASTER & REVENDA) ---
 model Transaction {
   id          String   @id @default(cuid())
   amount      Float    
-  description String?  
+  description String?
   status      String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
   
   userId      String
@@ -66,19 +69,19 @@ model Transaction {
   createdAt   DateTime @default(now())
 }
 
-// --- MÃ“DULO DE AUDITORIA ---
+// --- MÓDULO DE AUDITORIA ---
 model AuditLog {
   id        String   @id @default(cuid())
   action    String   
-  details   String?  
+  details   String?
   userId    String   
   user      User     @relation(fields: [userId], references: [id])
-  targetId  String?  
+  targetId  String?
   ipAddress String?  
   createdAt DateTime @default(now())
 }
 
-// --- MÃ“DULO DE ESTOQUE (LOJA) ---
+// --- MÓDULO DE ESTOQUE (LOJA) ---
 model Category {
   id        String    @id @default(cuid())
   name      String
@@ -92,7 +95,7 @@ model Product {
   id          String   @id @default(cuid())
   name        String
   description String?
-  sku         String?  // CÃ³digo de Barras
+  sku         String?  // Código de Barras
   priceCost   Float    @default(0) 
   priceSell   Float    @default(0) 
   stock       Int      @default(0) 
@@ -105,33 +108,33 @@ model Product {
   store       User     @relation(fields: [storeId], references: [id])
 
   saleItems   SaleItem[]
-  active      Boolean  @default(true) // Para Soft Delete (sincronizaÃ§Ã£o)
+  active      Boolean  @default(true) 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-// --- MÃ“DULO DE VENDAS / PDV (LOJA) ---
+// --- MÓDULO DE VENDAS / PDV (LOJA) ---
 model Sale {
-  id          String     @id @default(cuid())
-  number      Int?       // NÃºmero sequencial amigÃ¡vel para a loja
-  total       Float
-  discount    Float      @default(0)
-  change      Float      @default(0) // Troco
-  status      String     @default("COMPLETED")
-  syncedAt    DateTime?  // Controle de sincronizaÃ§Ã£o
+  id            String     @id @default(cuid())
+  number        Int?       // Número sequencial amigável   
+  total         Float
+  discount      Float      @default(0)
+  change        Float      @default(0)
+  status        String     @default("COMPLETED")
+  syncedAt      DateTime?
   
-  storeId     String
-  store       User       @relation(fields: [storeId], references: [id])
+  storeId       String
+  store         User       @relation(fields: [storeId], references: [id])
   
-  customerId  String?
-  customer    Customer?  @relation(fields: [customerId], references: [id])
+  customerId    String?
+  customer      Customer?  @relation(fields: [customerId], references: [id])
 
   cashSessionId String?
   cashSession   CashSession? @relation(fields: [cashSessionId], references: [id])
 
-  items       SaleItem[]
-  payments    SalePayment[]
-  createdAt   DateTime   @default(now())
+  items         SaleItem[]
+  payments      SalePayment[]
+  createdAt     DateTime   @default(now())
 }
 
 model SalePayment {
@@ -150,7 +153,6 @@ model Customer {
   phone     String?
   email     String?
   address   String?
-  
   storeId   String
   store     User     @relation(fields: [storeId], references: [id])
   sales     Sale[]
@@ -166,8 +168,8 @@ model CashSession {
   openedAt      DateTime  @default(now())
   closedAt      DateTime?
   initialAmount Float     // Fundo de troco
-  finalAmount   Float?    // Valor conferido no fechamento
-  status        String    @default("OPEN") // OPEN, CLOSED
+  finalAmount   Float?    // Valor conferido
+  status        String    @default("OPEN")
   sales         Sale[]
 }
 
@@ -178,7 +180,5 @@ model SaleItem {
   productId String
   product   Product  @relation(fields: [productId], references: [id])
   quantity  Int
-  priceUnit Float    // PreÃ§o no momento exato da venda
+  priceUnit Float
 }
-
-

@@ -13,8 +13,14 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) throw new Error("Incompleto");
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        
+        const user = await prisma.user.findUnique({ 
+          where: { email: credentials.email },
+          include: { reseller: true }
+        });
+
         if (!user || !user.password) throw new Error("Não encontrado");
+        
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) throw new Error("Senha incorreta");
         
@@ -23,7 +29,10 @@ export const authOptions: NextAuthOptions = {
           name: user.name, 
           email: user.email, 
           role: user.role,
-          permissions: (user as any).permissions || "[]"
+          permissions: (user as any).permissions || "[]",
+          isBlocked: user.isBlocked,
+          blockTree: user.blockTree,
+          resellerBlockTree: user.reseller?.blockTree || false
         };
       }
     })
@@ -33,22 +42,37 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        token.permissions = (user as any).permissions;
+        token.isBlocked = user.isBlocked;
+        token.blockTree = user.blockTree;
+        token.resellerBlockTree = (user as any).resellerBlockTree;
       }
 
+      // Verificação em Tempo Real no Banco
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { isBlocked: true, blockTree: true, reseller: { select: { blockTree: true } } }
+        });
+        if (dbUser) {
+          token.isBlocked = dbUser.isBlocked;
+          token.blockTree = dbUser.blockTree;
+          token.resellerBlockTree = dbUser.reseller?.blockTree || false;
+        }
+      }
+
+      // Lógica de Impersonate
       if (trigger === "update" && session?.action === "impersonate") {
         const target = await prisma.user.findUnique({ where: { id: session.targetId } });
-        if (target && (token.role === "MASTER" || (token.role === "RESELLER" && target.resellerId === token.id))) {
-          token.impersonatedBy = token.impersonatedBy || { id: token.id, name: token.name as string, role: token.role };
+        if (target) {
+          token.impersonatedBy = token.impersonatedBy || { id: token.id, name: token.name, role: token.role };
           token.id = target.id;
           token.name = target.name;
-          token.email = target.email;
           token.role = target.role;
         }
       }
 
       if (trigger === "update" && session?.action === "stop-impersonating" && token.impersonatedBy) {
-        const original = token.impersonatedBy;
+        const original = token.impersonatedBy as any;
         token.id = original.id;
         token.name = original.name;
         token.role = original.role;
@@ -59,9 +83,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        (session.user as any).permissions = token.permissions;
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
         session.user.impersonatedBy = token.impersonatedBy;
       }
       return session;

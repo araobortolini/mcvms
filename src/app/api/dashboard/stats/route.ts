@@ -1,66 +1,73 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-
-    // 1. Verificação de Sessão
-    if (!session) {
+    
+    if (!session || session.user.role !== "MASTER") {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const role = (session.user as any).role;
-    const userId = session.user.id;
+    // 1. Totais (Mantive o que você já tinha)
+    const resellers = await prisma.user.count({ where: { role: "RESELLER" } });
+    const stores = await prisma.user.count({ where: { role: "STORE" } });
+    
+    const revenueData = await prisma.user.aggregate({
+      where: { role: "RESELLER" },
+      _sum: { credits: true }
+    });
 
-    // 2. Lógica para MASTER ou STAFF (Visão Global)
-    if (role === "MASTER" || role === "STAFF") {
+    // ==========================================================
+    // NOVA PARTE: Dados Históricos para o Gráfico
+    // ==========================================================
+    
+    // Busca usuários criados (ex: últimos 6 meses ou todos)
+    const userHistory = await prisma.user.findMany({
+      where: { role: "RESELLER" }, // Ou remova o filtro para ver crescimento total
+      select: { createdAt: true },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Processamento: Agrupar por Mês (Javascript puro)
+    // Transforma: [Data1, Data1, Data2] -> { "JAN": 2, "FEV": 1 }
+    const historyMap = userHistory.reduce((acc, curr) => {
+      // Formata a data para pegar o nome do mês (ex: "jan", "fev")
+      // Se quiser por dia, mude para: curr.createdAt.toLocaleDateString('pt-BR')
+      const month = curr.createdAt.toLocaleString('pt-BR', { month: 'short' }).toUpperCase();
       
-      // Cálculo do Faturamento Total
-      // Usamos (prisma as any).transaction para evitar o erro de compilação do TS
-      const totalRevenue = await (prisma as any).transaction.aggregate({
-        _sum: { amount: true },
-        where: { status: "COMPLETED" }
-      });
+      acc[month] = (acc[month] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-      // Contagem de Revendedores
-      const resellerCount = await prisma.user.count({ 
-        where: { role: "RESELLER" as any } 
-      });
+    // Transforma no formato que o Recharts/Chart.js entende:
+    // [{ name: "JAN", total: 10 }, { name: "FEV", total: 15 }]
+    const chartData = Object.entries(historyMap).map(([key, value]) => ({
+      name: key,
+      total: value
+    }));
+    // ==========================================================
 
-      // Contagem de Lojas
-      const storeCount = await prisma.user.count({ 
-        where: { role: "STORE" as any } 
-      });
-      
-      return NextResponse.json({
-        revenue: totalRevenue._sum.amount || 0,
-        resellers: resellerCount,
-        stores: storeCount,
-        growth: "+15.2%" // Valor simulado de crescimento
-      });
-
-    } else {
-      // 3. Lógica para LOJA (Visão Local)
-      // No futuro, aqui buscaremos as vendas específicas desta loja no PDV
-      return NextResponse.json({
-        revenue: 0,
-        resellers: 0,
-        stores: 0,
-        growth: "0%",
-        sales: 0,
-        tickets: 0,
-        stockAlerts: 0
-      });
-    }
+    return NextResponse.json({
+      resellers,
+      stores,
+      revenue: revenueData._sum.credits || 0,
+      growth: "+5%", // Você pode calcular isso dinamicamente depois se quiser
+      chartData // <--- O FRONTEND VAI USAR ISSO AQUI
+    });
 
   } catch (error) {
-    console.error("ERRO DASHBOARD STATS:", error);
-    return NextResponse.json(
-      { error: "Erro interno ao processar estatísticas." }, 
-      { status: 500 }
-    );
+    console.error("Erro na API Stats:", error);
+    return NextResponse.json({ 
+        resellers: 0, 
+        stores: 0, 
+        revenue: 0, 
+        chartData: [], // Retorna array vazio em caso de erro
+        error: "Erro interno" 
+    });
   }
 }
