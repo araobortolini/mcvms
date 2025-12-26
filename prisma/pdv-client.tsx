@@ -1,0 +1,1 @@
+// Arquivo movido para src/app/(dashboard)/pdv/pdv-client.tsx

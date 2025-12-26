@@ -1,0 +1,1 @@
+// Arquivo movido para src/lib/prisma.ts

@@ -1,61 +1,55 @@
-import { NextResponse } from "next/server";
+﻿import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "RESELLER") {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const { storeId, creditsToTransfer } = await req.json();
+
   try {
-    const session = await getServerSession(authOptions);
+    await prisma.$transaction(async (tx) => {
+      const reseller = await tx.user.findUnique({ where: { id: session.user.id } });
+      if (!reseller || reseller.credits < creditsToTransfer) {
+        throw new Error("Saldo insuficiente");
+      }
 
-    if (!session || (session.user as any).role !== "RESELLER") {
-      return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
-    }
+      // Remove créditos do revendedor
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: { credits: { decrement: creditsToTransfer } }
+      });
 
-    const resellerId = session.user.id;
-    const { storeId, amount } = await req.json();
+      // Adiciona créditos (ou dias de expiração) à loja
+      // Exemplo: 1 crédito = 30 dias
+      const daysToAdd = creditsToTransfer * 30;
+      const store = await tx.user.findUnique({ where: { id: storeId } });
+      const currentExpire = store?.expiresAt && store.expiresAt > new Date() 
+        ? new Date(store.expiresAt) 
+        : new Date();
+      
+      currentExpire.setDate(currentExpire.getDate() + daysToAdd);
 
-    if (!storeId || amount <= 0) {
-      return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
-    }
-
-    // 1. Validar se o revendedor tem saldo e se a loja pertence a ele
-    const [reseller, store] = await Promise.all([
-      prisma.user.findUnique({ where: { id: resellerId } }),
-      prisma.user.findFirst({ where: { id: storeId, resellerId: resellerId } })
-    ]);
-
-    if (!reseller || reseller.credits < amount) {
-      return NextResponse.json({ error: "Saldo insuficiente na revenda." }, { status: 400 });
-    }
-
-    if (!store) {
-      return NextResponse.json({ error: "Loja não encontrada ou não pertence a esta revenda." }, { status: 404 });
-    }
-
-    // 2. Transação: Tira da revenda e coloca na loja
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: resellerId },
-        data: { credits: { decrement: amount } }
-      }),
-      prisma.user.update({
+      await tx.user.update({
         where: { id: storeId },
-        data: { credits: { increment: amount } }
-      }),
-      (prisma as any).auditLog.create({
+        data: { expiresAt: currentExpire, isGraceActive: false }
+      });
+
+      await tx.auditLog.create({
         data: {
-          action: "CREDIT_TRANSFER",
-          userId: resellerId,
-          targetId: storeId,
-          details: `Transferência de ${amount} créditos para a loja ${store.name}`
+          action: "RESELLER_TRANSFER",
+          details: `Revendedor ${session.user.id} transferiu ${creditsToTransfer} créditos para loja ${storeId}`,
+          userId: session.user.id
         }
-      })
-    ]);
+      });
+    });
 
     return NextResponse.json({ success: true });
-
-  } catch (error) {
-    console.error("ERRO TRANSFERENCIA:", error);
-    return NextResponse.json({ error: "Erro interno no servidor." }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

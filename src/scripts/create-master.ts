@@ -1,46 +1,35 @@
-const { PrismaClient } = require("@prisma/client");
-const { hash } = require("bcryptjs");
+﻿import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = "master@admin.com"; // Você pode alterar este e-mail
-  const password = "masterpassword"; // Você pode alterar esta senha
-  const name = "Super Admin Master";
+  const email = "admin@pluspdv.com";
+  const password = "admin123"; // ALTERE ESTA SENHA APÓS O PRIMEIRO LOGIN
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 1. Verificar se já existe
-  const exists = await prisma.user.findUnique({
+  const master = await prisma.user.upsert({
     where: { email },
-  });
-
-  if (exists) {
-    console.log("O usuário Master já existe no banco de dados.");
-    return;
-  }
-
-  // 2. Criptografar senha
-  const hashedPassword = await hash(password, 10);
-
-  // 3. Criar usuário com papel MASTER
-  await prisma.user.create({
-    data: {
-      name,
+    update: {},
+    create: {
       email,
+      name: "Administrador Master",
       password: hashedPassword,
-      role: "MASTER", // Definindo o cargo mais alto
+      role: "MASTER",
+      credits: 999999,
     },
   });
 
   console.log("--------------------------------------");
-  console.log("SUPER ADMIN CRIADO COM SUCESSO!");
-  console.log(`E-mail: ${email}`);
+  console.log("Usuário Master criado com sucesso!");
+  console.log(`E-mail: ${master.email}`);
   console.log(`Senha: ${password}`);
   console.log("--------------------------------------");
 }
 
 main()
   .catch((e) => {
-    console.error("Erro ao criar Master:", e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
